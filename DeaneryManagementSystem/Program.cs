@@ -1,13 +1,19 @@
 using DeaneryManagementSystem.Data;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
-builder.Services.AddSingleton<WeatherForecastService>();
+
+
+var connectionstring = builder.Configuration.GetConnectionString("DeanerySystem");
+builder.Services.AddDbContext<DeaneryContext>(
+    options => options.UseNpgsql(connectionstring),
+    ServiceLifetime.Transient);
 
 var app = builder.Build();
 
