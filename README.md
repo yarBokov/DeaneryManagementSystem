@@ -1,5 +1,5 @@
 # Система управления деканатом
-Это сайт для управления деканатом. Для запуска
+Это сайт для управления деканатом.
 
 ### Данный проект несет несколько целей:
 * Научиться/закреить умения работы с системой контроля версий
@@ -9,9 +9,13 @@
 
 ### Запуск
 * Клонируйте репозиторий
-* Скачайте пакет subprocess: __pip install subprocess__
-* Перейдите в директорию DeaneryManagementSystem/build/
-* Запустите скрипт build.py: __python .\build.py__
+* Скачайте пакет subprocess: __pip install psycopg2__ или __pip install psycopg2-binary__
+* Перейдите в директорию DeaneryManagementSystem/DeaneryManagementSystem/
+* Введите команду __docker-compose build__, затем
+  __docker-compose up -d__
+* Перейдите в директорию ./Database
+* Запустите скрипт build.py: __python .\db_initialize.py__ , не обращайте внимания на предупреждения
+* Всё готово: введите в браузере **localhost:8888** (либо другой порт, если решите поменять его в файле docker-compose.yml, в блоке blazorserver)  
 
 ## Выполнил студент
 Ярослав Боков, 5130904/10101
