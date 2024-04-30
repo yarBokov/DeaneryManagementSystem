@@ -9,7 +9,7 @@
 
 ### Запуск
 * Клонируйте репозиторий
-* Скачайте пакет subprocess: __pip install psycopg2__ или __pip install psycopg2-binary__
+* Скачайте пакет psycopg2: __pip install psycopg2__ или __pip install psycopg2-binary__
 * Перейдите в директорию DeaneryManagementSystem/DeaneryManagementSystem/
 * Введите команду __docker-compose build__, затем
   __docker-compose up -d__
