@@ -1,0 +1,58 @@
+﻿@using DeaneryManagementSystem.Models
+@inject ISubjectService SubjectService
+
+<EditForm Model="_subjectModel" OnValidSubmit="SaveSubjectAsync">
+    <DataAnnotationsValidator />
+    <div class="card border-0">
+        <div class="card-header bg-black text-white d-flex justify-content-between align-items-center" style="min-width: 320px">
+            <h4>@(_subjectModel.Id > 0 ? "Редактировать" : "Добавить новый") предмет</h4>
+            <button type="button" class="btn btn-sm btn-danger" @onclick="CloseSubjectAsync">X</button>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">Предмет: </label>
+                <InputText @bind-Value="_subjectModel.Name" class="form-control" placeholder="Название предмета" />
+                <ValidationMessage For="() => _subjectModel.Name" />
+            </div>
+        </div>
+        <div class="card-footer d-flex justify-content-between align-items-center">
+            <button type="button" class="btn btn-sm btn-default" @onclick="CloseSubjectAsync">Отмена</button>
+            <button type="submit" class="btn btn-sm btn-primary">Готово</button>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter]
+    public Subject Subject { get; set; }
+
+    [Parameter]
+    public EventCallback<MethodResult> OnSaveSubject { get; set; }
+
+    [Parameter]
+    public EventCallback OnCloseForm { get; set; }
+
+    private Subject _subjectModel = new();
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        _subjectModel = Subject;
+    }
+
+    private async Task SaveSubjectAsync()
+    {
+        MethodResult result = await SubjectService.SaveSubjectAsync(_subjectModel);
+        if (result.Status)
+        {
+            _subjectModel = new();
+        }
+        await OnSaveSubject.InvokeAsync(result);
+    }
+
+    private async Task CloseSubjectAsync()
+    {
+        _subjectModel = new();
+        await OnCloseForm.InvokeAsync();
+    }
+}

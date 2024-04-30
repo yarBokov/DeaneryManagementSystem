@@ -1,0 +1,63 @@
+﻿@using DeaneryManagementSystem.Models
+@inject IGroupService GroupService
+
+<EditForm Model="_groupModel" OnValidSubmit="SaveGroupAsync">
+    <DataAnnotationsValidator />
+    <div class="card border-0">
+        <div class="card-header bg-black text-white d-flex justify-content-between align-items-center" style="min-width: 320px">
+            <h4>@(_groupModel.Id > 0 ? "Редактировать" : "Добавить новую") группу</h4>
+            <button type="button" class="btn btn-sm btn-danger" @onclick="CloseFormAsync">X</button>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">Год: </label>
+                <InputNumber @bind-Value="_groupModel.Year" class="form-control" placeholder="Год поступления" />
+                <ValidationMessage For="() => _groupModel.Year" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Идентификатор(название): </label>
+                <InputText @bind-Value="_groupModel.Name" class="form-control" placeholder="Идентификатор группы" />
+                <ValidationMessage For="() => _groupModel.Name" />
+            </div>
+        </div>
+        <div class="card-footer d-flex justify-content-between align-items-center">
+            <button type="button" class="btn btn-sm btn-default" @onclick="CloseFormAsync">Отмена</button>
+            <button type="submit" class="btn btn-sm btn-primary">Готово</button>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter]
+    public Data.Entities.Group Group { get; set; }
+
+    [Parameter]
+    public EventCallback<MethodResult> OnSaveGroup { get; set; }
+
+    [Parameter]
+    public EventCallback OnCloseForm { get; set; }
+
+    private Data.Entities.Group _groupModel = new();
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+        _groupModel = Group;
+    }
+
+    private async Task SaveGroupAsync()
+    {
+        MethodResult result = await GroupService.SaveGroupAsync(_groupModel);
+        if (result.Status)
+        {
+            _groupModel = new();
+        }
+        await OnSaveGroup.InvokeAsync(result);
+    }
+
+    private async Task CloseFormAsync()
+    {
+        _groupModel = new();
+        await OnCloseForm.InvokeAsync();
+    }
+}
