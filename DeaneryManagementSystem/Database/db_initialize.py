@@ -3,7 +3,7 @@ import psycopg2
 conn = psycopg2.connect(
     dbname='deanery',
     user='postgres',
-    password='pass_dean',
+    password='pass_deanery',
     host='localhost',
     port=2345
 )
