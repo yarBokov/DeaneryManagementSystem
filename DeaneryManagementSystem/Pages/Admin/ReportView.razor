@@ -1,0 +1,105 @@
+﻿@page "/admin/reports"
+
+@attribute [Authorize(Roles = "Admin")]
+
+@inject IGroupService GroupService
+@inject ISubjectService SubjectService
+@inject IPersonService PersonService
+@inject IMarkService MarkService
+
+@if (_loading)
+{
+    <p><em>Загрузка...</em></p>
+}
+else if (!_loading && (_markDistrs is null || !_markDistrs.Any()))
+{
+    <p><h2>Данные не найдены!</h2></p>
+}
+else
+{
+    <div class="container">
+        <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H3">Статистика по группам и предметам</RadzenText>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem" Class="rz-p-2">
+            <RadzenCard class="mt-4 w-100 mb-4 d-flex align-items-center" >
+                <RadzenLabel Text="Группа:" Style="margin-right: 8px; vertical-align: middle;" />
+                <RadzenDropDown Data="@_groups" @bind-Value="@groupModelId" 
+                    TextProperty="Name" ValueProperty="Id" AllowFiltering="true"
+                    Change="@(args => { _terms = GroupService.GenerateTermSeq(groupModelId);})"/>
+            </RadzenCard>
+            <hr>
+            <hr>
+            <div style="display: flex; align-items: center">
+                <div style="white-space:nowrap; margin-right: 16px">Предмет:</div>
+                <RadzenDropDown @bind-Value="@subjectModelId" TextProperty="Name" ValueProperty="Id" Data="@_subjects" AllowFiltering="true" />
+
+                <div style="white-space:nowrap; margin-left: 32px;margin-right: 16px">Семестры:</div>
+                <RadzenDropDown @bind-Value="@termModel" Data="@_terms" AllowFiltering="true" />
+            </div>
+        </RadzenStack>
+        <div class="row my-5">
+            <div class="col-sm-12 col-lg-7">
+                <RadzenChart ColorScheme="ColorScheme.Palette">
+                    @foreach(var subject in _subjects)
+                    {
+                        var subjectMarks = _markAvgTerms.Where(md => md.SubjectId == subject.Id && md.GroupId == groupModelId).ToList();
+                        <RadzenColumnSeries Data="@subjectMarks" CategoryProperty="Term" ValueProperty="AvgMark" Title="@subject.Name" />
+                    }
+                    <RadzenColumnOptions Margin="0" />
+                    <RadzenValueAxis Formatter="@FormatAvgMark" />
+                </RadzenChart>
+            </div>
+            <div class="col-sm-12 col-lg-5">
+                <RadzenChart ColorScheme="ColorScheme.Divergent">
+                    <RadzenPieSeries Data="@_markDistrs.Where(md => md.GroupId == groupModelId && md.SubjectId == subjectModelId && md.Term == termModel)" 
+                        Title="Количество" CategoryProperty="MarkNumber" ValueProperty="MarkCount">
+                        <RadzenSeriesDataLabels Visible="true" />
+                    </RadzenPieSeries>
+                </RadzenChart>
+            </div>
+        </div>
+    </div>   
+}
+
+@code {
+    private bool _loading = false;
+
+    IEnumerable<Data.Entities.Group> _groups;
+    int groupModelId = 1;
+
+    IEnumerable<Subject> _subjects;
+    int subjectModelId = 1;
+
+    IEnumerable<int> _terms;
+    int termModel = 1;
+
+    IEnumerable<MarkDistrModel> _markDistrs;
+    IEnumerable<AvgMarkTermModel> _markAvgTerms;
+
+    private async Task LoadDataAsync()
+    {
+        _loading = true;
+        try
+        {
+            _groups = await GroupService.GetGroupsByTypeAsync('S');
+            _terms = GroupService.GenerateTermSeq(1);
+            _subjects = await SubjectService.GetSubjectsAsync();
+            _markAvgTerms = MarkService.GetAvgMarkTermModels();
+            _markDistrs = MarkService.GetMarkDistrs();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await LoadDataAsync();
+    }
+
+    string FormatAvgMark(object value)
+    {
+        return String.Format("{0:0.000}", (double)value);
+    }
+}
