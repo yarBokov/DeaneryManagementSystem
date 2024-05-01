@@ -1,0 +1,149 @@
+﻿@page "/authentication/registration"
+@using DeaneryManagementSystem.Models.Authentication;
+
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+@inject IAccountService AccountService
+@inject IPasswordHasher PasswordHasher
+@inject IPersonService PersonService
+
+@if (_isProcessing)
+{
+    <div class="overlay position-fixed"></div>
+    <div class="loading-wrapper d-flex justify-content-center align-items-center">
+        <RadzenProgressBarCircular ShowValue="true" Mode="ProgressBarMode.Indeterminate" Size="ProgressBarCircularSize.Medium">
+            <Template>
+                Регистрация...
+            </Template>
+        </RadzenProgressBarCircular>
+    </div>
+}
+<RadzenText TextStyle="TextStyle.H5" TagName="TagName.H3">Регистрация</RadzenText>
+<EditForm Model="_model" OnValidSubmit="RegisterAsync">
+    <DataAnnotationsValidator />
+    <div class="container mt-5 d-flex justify-content-center">
+        <div class="card" style="width: 450px">
+            <div class="card-header">
+                <h2>Вход</h2>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Введите ID из вашего списка</label>
+                    <RadzenNumeric ShowUpDown="false" @bind-Value="_model.PersonId" class="form-control" TValue="int?" Placeholder="Введите ваш ID" AutoComplete="false" />
+                    <ValidationMessage For="() => _model.PersonId" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Пароль</label>
+                    <RadzenPassword @bind-Value="_model.Password" class="form-control" Placeholder="Введите пароль" AutoComplete="false" />
+                    <ValidationMessage For="() => _model.Password" />
+                </div>
+                <div class="mb-3">
+                    <RadzenCheckBox TValue="bool" Value=@_isAdmin Change=@(args => _isAdmin = args) Name="AdminCheckBox" />
+                    <RadzenLabel Text="Я - администратор" Component="AdminCheckBox" Style="margin-left: 8px; vertical-align: middle;" />
+                </div>
+                <br />
+                @if (_isAdmin)
+                {
+                    <div class="mb-3">
+                        <label class="form-label">Ключ доступа</label>
+                        <InputText @bind-Value="_model.AccessKey" class="form-control" placeholder="Введите код доступа" />
+                        <ValidationMessage For="() => _model.AccessKey" />
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(_errorMsg))
+                {
+                    <p class="text-danger">@_errorMsg</p>
+                }
+            </div>
+            <div class="card-footer">
+                <button type="submit" class="btn btn-success btn-sm">Войти</button>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    private RegisterModel _model = new();
+
+    private bool _isAdmin = false;
+
+    private bool _isProcessing = false;
+    private string? _errorMsg = null;
+
+    private Key? accessKey = null;
+
+    private async Task RegisterAsync()
+    {
+        _errorMsg = null;
+        _isProcessing = true;
+        try
+        {
+            User? userAccount = new();
+            var personById = await PersonService.GetPersonById(_model.PersonId.Value);
+            if (personById == null)
+            {
+                _errorMsg = "Человека с таким ID в базе не существует!";
+                _isProcessing = false;
+            }
+            else
+            {
+                userAccount = await AccountService.GetUserByPersonId(_model.PersonId.Value);
+                if (userAccount != null)
+                {
+                    _errorMsg = "Пользователь с таким ID уже существует!";
+                    _isProcessing = false;
+                }
+                else if (_isProcessing)
+                {
+                    if (_isAdmin)
+                    {
+                        if (_model.AccessKey != null)
+                        {
+                            accessKey = await AccountService.GetKeyAsync(_model.AccessKey, (PasswordHasher)PasswordHasher);
+                            if (accessKey == null)
+                            {
+                                _errorMsg = "Неверный ключ доступа! Попробуйте снова";
+                                _isProcessing = false;
+                            }
+                        }
+                        else
+                        {
+                            _errorMsg = "Введите ключ доступа админа!";
+                            _isProcessing = false;
+                        }
+                    }
+                    if (_isProcessing)
+                    {
+                        var result = await AccountService.SaveUserAsync(new User
+                            {
+                                PersonId = _model.PersonId,
+                                HashedPassword = PasswordHasher.Hash(_model.Password),
+                                KeyId = (accessKey == null ? null : accessKey.Id)
+                            });
+                        if (!result.Status)
+                        {
+                            throw new Exception("Ошибка при сохранении пользователя: " + result.Error);
+                        }
+                        else
+                        {
+                            await Task.Delay(1000);
+                            userAccount = await AccountService.GetUserByPersonId(_model.PersonId.Value);
+                            var deaneryAuthStateProvider = (DeaneryAuthenticationStateProvider)AuthStateProvider;
+                            await deaneryAuthStateProvider.UpdateAuthenticationState(new UserSession
+                                {
+                                    UserName = userAccount.Person.getFullName(),
+                                    Role = userAccount.Person.getUserRole()
+                                });
+                            NavigationManager.NavigateTo("/", true);
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            _isProcessing = true;
+            _errorMsg = e.Message;
+        }
+    }
+}

@@ -52,8 +52,8 @@
 @code {
     private async Task LogoutAsync()
     {
-        // var customAuthStateProvider = (DeaneryAuthenticationStateProvider)AuthStateProvider;
-        // await customAuthStateProvider.UpdateAuthenticationState(null);
-        // NavigationManager.NavigateTo("/", true);
+        var customAuthStateProvider = (DeaneryAuthenticationStateProvider)AuthStateProvider;
+        await customAuthStateProvider.UpdateAuthenticationState(null);
+        NavigationManager.NavigateTo("/", true);
     }
 }
