@@ -24,4 +24,16 @@ public partial class Person
     public virtual ICollection<Mark> MarkTeachers { get; set; } = new List<Mark>();
 
     public virtual ICollection<User> Users { get; set; } = new List<User>();
+
+    public string getFullName()
+    {
+        return $"{SecondName} {FirstName} {PatherName}";
+    }
+
+    public string getUserRole()
+    {
+        if (Type != 'W')
+            return "User";
+        return "Admin";
+    }
 }
