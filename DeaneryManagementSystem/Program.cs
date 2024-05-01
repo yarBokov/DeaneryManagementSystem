@@ -23,7 +23,8 @@ builder.Services.AddScoped<IGroupService, GroupService>()
                 .AddScoped<ISubjectService, SubjectService>()
                 .AddScoped<IAccountService, AccountService>()
                 .AddScoped<IPasswordHasher, PasswordHasher>()
-                .AddScoped<IPersonService, PersonService>();
+                .AddScoped<IPersonService, PersonService>()
+                .AddScoped<IMarkService, MarkService>();
 
 var connectionstring = builder.Configuration.GetConnectionString("DeanerySystem");
 builder.Services.AddDbContext<DeaneryContext>(
