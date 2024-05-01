@@ -25,7 +25,6 @@ builder.Services.AddScoped<IGroupService, GroupService>()
                 .AddScoped<IPasswordHasher, PasswordHasher>()
                 .AddScoped<IPersonService, PersonService>();
 
-
 var connectionstring = builder.Configuration.GetConnectionString("DeanerySystem");
 builder.Services.AddDbContext<DeaneryContext>(
     options => options.UseNpgsql(connectionstring),

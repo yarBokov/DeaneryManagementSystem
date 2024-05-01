@@ -1,0 +1,273 @@
+﻿@page "/admin/teachers"
+
+@attribute [Authorize(Roles = "Admin")]
+
+@inject IJSRuntime JsRuntime
+@inject IPersonService PersonService
+@inject IGroupService GroupService
+@inject DialogService DialogService
+
+@if (_loading)
+{
+    <p><em>Загрузка...</em></p>
+}
+else if (!_loading && (_teachers is null || !_teachers.Any()))
+{
+    <p><h2>Данные не найдены!</h2></p>
+}
+else
+{
+
+    <style>
+        .rz-grid-table {
+            width: unset;
+        }
+
+        .centered-table {
+            margin: auto;
+        }
+    </style>
+
+    <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H3">Преподаватели</RadzenText>
+    <hr>
+    <div class="container-fluid flex-xl-grow-1">
+        <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle_outline"
+                      class="mt-2 mb-4 rz-border-radius-4" Text="Добавить новую запись"
+                      Click="@InsertRow" Disabled=@(personToInsert != null || personToUpdate != null) />
+        <br />
+        <RadzenDataGrid @ref="teachersGrid" AllowAlternatingRows="false" AllowFiltering="true" AllowColumnResize="true" Density="@density"
+                        AllowPaging="true" PageSize="6" AllowSorting="true" EditMode="Radzen.DataGridEditMode.Single"
+                        Data="@_teachers" TItem="Person" RowUpdate="@OnUpdateRow" RowCreate="@OnCreateRow"
+                        FilterCaseSensitivity="@filterCaseSensitivity" LogicalFilterOperator="@logicalFilterOperator" FilterMode="FilterMode.Simple"
+                        Sort="@Reset" Page="@Reset" Filter="@Reset" GridLines="DataGridGridLines.Both">
+
+            <HeaderTemplate>
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" Class="rz-p-2">
+                    <RadzenCard class="my-2" style="display: flex; align-items: center; gap: 0.5rem">
+                        <div style="white-space:nowrap; margin-right: 8px">Плотность строк</div>
+                        <RadzenSelectBar @bind-Value="@density" TextProperty="Text" ValueProperty="Value"
+                                         Data="@(Enum.GetValues(typeof(Density)).Cast<Density>().Select(t => new {Text = $"{t}", Value=t }))" />
+                    </RadzenCard>
+                    <hr>
+                    <hr>
+                    <div style="display: flex; align-items: center">
+                        <div style="white-space:nowrap; margin-right: 16px">Логический оператор:</div>
+                        <RadzenDropDown @bind-Value="@logicalFilterOperator" TextProperty="Text" ValueProperty="Value" Change=@(args => teachersGrid.Reload())
+                                        Data="@(Enum.GetValues(typeof(LogicalFilterOperator)).Cast<LogicalFilterOperator>().Select(t => new { Text = $"{t}".ToUpper(), Value = t }))" />
+
+                        <div style="white-space:nowrap; margin-left: 32px;margin-right: 16px">Чувствительность к регистру:</div>
+                        <RadzenSwitch @bind-Value=@caseSensitivityFlag Change="@(args => OnChangeCaseSensitivity(args))" />
+                    </div>
+                </RadzenStack>
+            </HeaderTemplate>
+
+            <Columns>
+                <RadzenDataGridColumn TItem="Person" Property="Id" Title="ID" Width="20px" Frozen="true" Filterable="false" />
+
+                <RadzenDataGridColumn TItem="Person" Property="SecondName" Title="Фамилия" Width="200px">
+                    <EditTemplate Context="person">
+                        <RadzenTextBox @bind-Value="person.SecondName" Style="width:100%; display: block;" Name="SecondName" />
+                        <RadzenRequiredValidator Text="Введите фамилию" Component="SecondName" Popup="true" />
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="Person" Property="FirstName" Title="Имя" Width="200px">
+                    <EditTemplate Context="person">
+                        <RadzenTextBox @bind-Value="person.FirstName" Style="width:100%; display: block;" Name="FirstName" />
+                        <RadzenRequiredValidator Text="Введите имя" Component="FirstName" Popup="true" />
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="Person" Property="PatherName" Title="Отчество" Width="200px">
+                    <EditTemplate Context="person">
+                        <RadzenTextBox @bind-Value="person.PatherName" Style="width:100%; display: block;" Name="PatherName" />
+                        <RadzenRequiredValidator Text="Введите отчество" Component="PatherName" Popup="true" />
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="Person" Filterable="false" Sortable="false" Width="150px" Title="Преподаёт:">
+                    <Template Context="person">
+                        <div class="container align-items-center justify-content-center">
+                            <table class="table centered-table">
+                                <thead>
+                                    <tr>
+                                        <th>Предмет</th>
+                                        <th>Средний балл</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (person.MarkTeachers is null || !person.MarkTeachers.Any())
+                                    {
+                                        <tr>
+                                            <td colspan="5" class="text-center">
+                                                Оценок не ставил!
+                                            </td>
+                                        </tr>
+                                    }
+                                    else
+                                    {
+                                        foreach (var mark in person.MarkTeachers.DistinctBy(m => m.SubjectId))
+                                        {
+                                            <tr>
+                                                <td>@mark.Subject.Name</td>
+                                                <td>@String.Format("{0:0.000}", @mark.Subject.getAverageMark())</td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="Person" Property="Group.Name" Title="Группа" Width="200px">
+                    <EditTemplate Context="person">
+                        <RadzenDropDown @bind-Value="person.GroupId" Data="@_groups" AllowFiltering="true" AllowClear="true"
+                                        TextProperty="Name" ValueProperty="Id" Style="width: 100%; display: block;" />
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="Person" Context="person" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Frozen="true" FrozenPosition="FrozenColumnPosition.Right">
+                    <Template Context="person">
+                        <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Visible="@(person.GroupId != 9999)" Variant="Variant.Flat" Size="ButtonSize.Large" Click="@(args => EditRow(person))" @onclick:stopPropagation="true">
+                        </RadzenButton>
+                        <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Visible="@(person.GroupId != 9999)" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Large" class="my-1 ms-1" Click="@(args => DeleteRow(person))" @onclick:stopPropagation="true">
+                        </RadzenButton>
+                    </Template>
+                    <EditTemplate Context="person">
+                        <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@((args) => SaveRow(person))">
+                        </RadzenButton>
+                        <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@((args) => CancelEdit(person))">
+                        </RadzenButton>
+                        <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@(args => DeleteRow(person))">
+                        </RadzenButton>
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+            </Columns>
+
+        </RadzenDataGrid>
+    </div>
+}
+@code {
+    RadzenDataGrid<Person> teachersGrid;
+    Density density = Density.Default;
+    IEnumerable<Person> _teachers;
+    IEnumerable<Data.Entities.Group> _groups;
+    private bool _loading = false;
+
+    Person? personToUpdate;
+    Person? personToInsert;
+
+    LogicalFilterOperator logicalFilterOperator = LogicalFilterOperator.And;
+    FilterCaseSensitivity filterCaseSensitivity = FilterCaseSensitivity.CaseInsensitive;
+    bool caseSensitivityFlag;
+
+    private void Reset()
+    {
+        personToInsert = null;
+        personToUpdate = null;
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _loading = true;
+        try
+        {
+            _teachers = await PersonService.GetTeachersAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        await LoadDataAsync();
+        _groups = await GroupService.GetGroupsByTypeAsync('P');
+    }
+
+    private async Task InsertRow()
+    {
+        personToInsert = new Person();
+        personToInsert.Type = 'P';
+        await teachersGrid.InsertRow(personToInsert);
+    }
+
+    private async Task SaveRow(Person person)
+    {
+        var result = await DialogService.Confirm("Вы собираетесь изменить данные?", "Редактирование", new ConfirmOptions() { OkButtonText = "Да", CancelButtonText = "Нет" });
+        if (result is true)
+        {
+            await teachersGrid.UpdateRow(person);
+            await LoadDataAsync();
+            await teachersGrid.Reload();
+        }
+    }
+
+    private async Task EditRow(Person person)
+    {
+        personToUpdate = person;
+        await teachersGrid.EditRow(person);
+    }
+
+    private async Task OnUpdateRow(Person person)
+    {
+        Reset();
+        await PersonService.SavePersonAsync(person);
+    }
+
+    private async Task DeleteRow(Person person)
+    {
+        var result = await DialogService.Confirm("Вы собираетесь удалить запись? ОЦЕНКИ, ВЫСТАВЛЕННЫЕ ПРЕПОДАВАТЕЛЕМ, БУДУТ СОХРАНЕНЫ В БУФЕР", "Удаление записи", new ConfirmOptions() { OkButtonText = "Да", CancelButtonText = "Нет" });
+        if (result is not true) return;
+        Reset();
+
+        if (_teachers.Contains(person))
+        {
+            var deleteCheck = await PersonService.DeletePersonAsync(person.Id, true);
+            if (!deleteCheck.Status)
+            {
+                await JsRuntime.InvokeVoidAsync("console.log", deleteCheck.Error);
+                return;
+            }
+            await LoadDataAsync();
+            await teachersGrid.Reload();
+        }
+        else
+        {
+            teachersGrid.CancelEditRow(person);
+            await teachersGrid.Reload();
+        }
+    }
+
+    private async Task OnCreateRow(Person person)
+    {
+        await PersonService.SavePersonAsync(person);
+        personToInsert = null;
+    }
+
+    private void CancelEdit(Person person)
+    {
+        Reset();
+
+        teachersGrid.CancelEditRow(person);
+
+        PersonService.CheckEntries(person);
+    }
+
+    private async Task OnChangeCaseSensitivity(bool? value)
+    {
+        if (!value.HasValue)
+        {
+            await JsRuntime.InvokeVoidAsync("console.log", $"variable with name {nameof(value)} does not contain readable value");
+            return;
+        }
+        if (value.Value)
+            filterCaseSensitivity = FilterCaseSensitivity.Default;
+        else
+            filterCaseSensitivity = FilterCaseSensitivity.CaseInsensitive;
+    }
+}
