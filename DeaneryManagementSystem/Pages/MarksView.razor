@@ -1,0 +1,344 @@
+﻿@page "/marks"
+
+@attribute [Authorize(Roles = "Admin,User")]
+
+@inject IJSRuntime JsRuntime
+@inject IMarkService MarkService
+@inject IPersonService PersonService
+@inject IGroupService GroupService
+@inject ISubjectService SubjectService
+@inject NavigationManager NavigationManager
+@inject DialogService DialogService
+
+@if (_loading)
+{
+    <p><em>Загрузка...</em></p>
+}
+else if (!_loading && (_marks is null || !_marks.Any()))
+{
+    <p><h2>Данные не найдены!</h2></p>
+}
+else
+{
+    if (_marks.Any(m => m.TeacherId == 9999))
+    {
+        int countOfUnHostedMarks = _marks.Where(m => m.TeacherId == 9999).Count();
+        <div class="rz-background-color-black rz-p-4">
+            <span style="color: var(--rz-text-contrast-color)">@(countOfUnHostedMarks) @(countOfUnHostedMarks > 1 ? "оценки" : "оценка") без определённого преподавателя!</span>
+        </div>
+    }
+    <style>
+        .rz-grid-table {
+            width: unset;
+        }
+
+        .button-container {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .left-button {
+            order: -1;
+        }
+    </style>
+    <RadzenText TextStyle="TextStyle.H5" TagName="TagName.H3">Оценки</RadzenText>
+    <hr>
+    <div class="container-fluid flex-xl-grow-1">
+        <AuthorizeView Roles="Admin">
+            <div class="button-container">
+                <RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle_outline"
+                              class="mt-2 mb-4 rz-border-radius-4 left-button" Text="Добавить новую запись"
+                              Click="@InsertRow" Disabled=@(markToInsert != null || markToUpdate != null) />
+
+                <RadzenButton ButtonStyle="ButtonStyle.Info" Icon="assessment" class="mt-2 mb-4 rz-border-radius-4"
+                              Text="К отчету" Click="@(args => NavigationManager.NavigateTo("/admin/reports"))" />
+            </div>
+        </AuthorizeView>
+        <RadzenDataGrid @ref="marksGrid" AllowAlternatingRows="false" AllowFiltering="true" AllowColumnResize="true" Density="@density"
+                        AllowPaging="true" PageSize="6" EditMode="Radzen.DataGridEditMode.Single"
+                        Data="@_marks" TItem="Mark" RowUpdate="@OnUpdateRow" RowCreate="@OnCreateRow" FilterMode="FilterMode.Simple"
+                        Page="@Reset" Filter="@Reset" GridLines="DataGridGridLines.Both" FilterCaseSensitivity="@filterCaseSensitivity" LogicalFilterOperator="@logicalFilterOperator">
+
+            <HeaderTemplate>
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" Class="rz-p-2">
+                    <RadzenCard class="my-2" style="display: flex; align-items: center; gap: 0.5rem">
+                        <div style="white-space:nowrap; margin-right: 8px">Плотность строк</div>
+                        <RadzenSelectBar @bind-Value="@density" TextProperty="Text" ValueProperty="Value"
+                                         Data="@(Enum.GetValues(typeof(Density)).Cast<Density>().Select(t => new {Text = $"{t}", Value=t }))" />
+                    </RadzenCard>
+                    <hr>
+                    <hr>
+                    <div style="display: flex; align-items: center">
+                        <div style="white-space:nowrap; margin-right: 16px">Логический оператор:</div>
+                        <RadzenDropDown @bind-Value="@logicalFilterOperator" TextProperty="Text" ValueProperty="Value" Change=@(args => marksGrid.Reload())
+                                        Data="@(Enum.GetValues(typeof(LogicalFilterOperator)).Cast<LogicalFilterOperator>().Select(t => new { Text = $"{t}".ToUpper(), Value = t }))" />
+
+                        <div style="white-space:nowrap; margin-left: 32px;margin-right: 16px">Чувствительность к регистру:</div>
+                        <RadzenSwitch @bind-Value=@caseSensitivityFlag Change="@(args => OnChangeCaseSensitivity(args))" />
+                    </div>
+                </RadzenStack>
+            </HeaderTemplate>
+
+            <Columns>
+                <RadzenDataGridColumn TItem="Mark" Property="Subject.Name" Title="Дисицплина" Width="100px" Frozen="true">
+                    <EditTemplate Context="mark">
+                        @if (isInserting)
+                        {
+                            <RadzenDropDown @bind-Value="mark.SubjectId" Data="@subjects" AllowFiltering="true" AllowClear="true"
+                                            TextProperty="Name" ValueProperty="Id" Style="width: 100%; display: block" />
+                        }
+                        else
+                        {
+                            <span style='color: var(--rz-text-color)'>@mark.Subject.Name</span>
+                        }
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="Mark" Property="Student.SecondName" Title="ФИО студента" Width="280px">
+                    <Template Context="mark">
+                        @mark.Student.getFullName()
+                    </Template>
+
+                    <EditTemplate Context="mark">
+                        @if (isInserting)
+                        {
+                            <RadzenDropDown @bind-Value="mark.StudentId" Data="@students" AllowFiltering="true" AllowClear="true"
+                                            TextProperty="FullName" ValueProperty="Id" Style="width: 100%; display: block" />
+                        }
+                        else
+                        {
+                            <span style='color: var(--rz-text-color)'>@mark.Student.getFullName()</span>
+                        }
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="Mark" Property="Student.Group.Name" Title="Группа" Width="100px">
+                    <EditTemplate>
+                        <RadzenProgressBar ProgressBarStyle="ProgressBarStyle.Info" Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="Mark" Property="Student.Group.Year" Title="Год поступления" Width="150px" FilterValue="@yearValue">
+                    <EditTemplate>
+                        <RadzenProgressBar ProgressBarStyle="ProgressBarStyle.Info" Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+                    </EditTemplate>
+
+                    <FilterTemplate>
+                        <RadzenNumeric @bind-Value=yearValue ShowUpDown=false />
+                    </FilterTemplate>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="Mark" Property="Teacher.SecondName" Title="ФИО преподавателя" Width="280px">
+                    <Template Context="mark">
+                        @if (mark.TeacherId == 9999)
+                        {
+                            <span style='color: var(--rz-danger)'>@mark.Teacher.getFullName()</span>
+                        }
+                        else
+                        {
+                            <span style='color: var(--rz-text-color)'>@mark.Teacher.getFullName()</span>
+                        }
+                    </Template>
+                    <EditTemplate Context="mark">
+                        @if (mark.TeacherId == 9999 || isInserting)
+                        {
+                            <RadzenDropDown @bind-Value="mark.TeacherId" Data="@teachers" AllowFiltering="true" AllowClear="true"
+                                            TextProperty="FullName" ValueProperty="Id" Style="width: 100%; display: block" Name="TeacherName" />
+                            <RadzenRequiredValidator Text="Введите ФИО преподавателя" Popup="true" Component="TeacherName" />
+                        }
+                        else
+                        {
+                            <span style='color: var(--rz-text-color)'>@mark.Teacher.getFullName()</span>
+                        }
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="Mark" Property="Value" Title="Оценка" Width="80px" FilterValue="@markValue">
+                    <EditTemplate Context="mark">
+                        <RadzenDropDown @bind-Value="mark.Value" Data="@Enumerable.Range(2, 4)" AllowFiltering="true" AllowClear="true" Style="width: 100%" Name="Mark" />
+                        <RadzenRequiredValidator Text="Введите оценку" Popup="true" Component="Mark" />
+                    </EditTemplate>
+
+                    <FilterTemplate>
+                        <RadzenNumeric @bind-Value=markValue ShowUpDown=false />
+                    </FilterTemplate>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="Mark" Property="Term" Title="За семестр" Width="100px" FilterValue="@termValue">
+                    <EditTemplate Context="mark">
+                        <RadzenNumeric @bind-Value="mark.Term" Style="width: 100%" ShowUpDown=false Min="1" Max="@mark.Student.Group.getMaxTerm()" Name="Term" />
+                        <RadzenRequiredValidator Text="Введите семестр" Popup="true" Component="Term" />
+                    </EditTemplate>
+
+                    <FilterTemplate>
+                        <RadzenNumeric @bind-Value="termValue" ShowUpDown=false Style="width: 100%" Min="1" Max="17" />
+                    </FilterTemplate>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn TItem="Mark" Title="Средний балл в группе" Width="80px" Filterable="false">
+                    <Template Context="mark">
+                        @String.Format("{0:0.000}", @mark.Subject.getAverageMarkByGroup(mark.Student.GroupId.Value))
+                    </Template>
+
+                    <EditTemplate>
+                        <RadzenProgressBar ProgressBarStyle="ProgressBarStyle.Info" Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+                    </EditTemplate>
+                </RadzenDataGridColumn>
+
+                <AuthorizeView Roles="Admin">
+                    <RadzenDataGridColumn TItem="Mark" Context="mark" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Frozen="true" FrozenPosition="FrozenColumnPosition.Right">
+                        <Template Context="mark">
+                            <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Large" Click="@(args => EditRow(mark))" @onclick:stopPropagation="true">
+                            </RadzenButton>
+                            <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Large" class="my-1 ms-1" Click="@(args => DeleteRow(mark))" @onclick:stopPropagation="true">
+                            </RadzenButton>
+                        </Template>
+                        <EditTemplate Context="mark">
+                            <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@((args) => SaveRow(mark))">
+                            </RadzenButton>
+                            <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@((args) => CancelEdit(mark))">
+                            </RadzenButton>
+                            <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@(args => DeleteRow(mark))">
+                            </RadzenButton>
+                        </EditTemplate>
+                    </RadzenDataGridColumn>
+                </AuthorizeView>
+            </Columns>
+
+        </RadzenDataGrid>
+    </div>
+}
+@code {
+    RadzenDataGrid<Mark> marksGrid;
+    Density density = Density.Default;
+    IEnumerable<Mark> _marks;
+    IEnumerable<Data.Entities.Group> groups;
+    IEnumerable<Subject> subjects;
+    List<PersonModel> teachers;
+    List<PersonModel> students;
+    private bool _loading = false;
+    private bool isInserting = false;
+
+    Mark? markToUpdate;
+    Mark? markToInsert;
+
+    int? markValue;
+    int? termValue;
+    int? yearValue;
+
+    LogicalFilterOperator logicalFilterOperator = LogicalFilterOperator.And;
+    FilterCaseSensitivity filterCaseSensitivity = FilterCaseSensitivity.CaseInsensitive;
+    bool caseSensitivityFlag;
+
+    private void Reset()
+    {
+        markToUpdate = null;
+        markToInsert = null;
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _loading = true;
+        try
+        {
+            _marks = await MarkService.GetMarksAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        await LoadDataAsync();
+        teachers = await PersonService.GetPersonModelsAsync('P');
+        students = await PersonService.GetPersonModelsAsync('S');
+        subjects = await SubjectService.GetSubjectsAsync();
+        groups = await GroupService.GetGroupsByTypeAsync('S');
+    }
+
+    private async Task InsertRow()
+    {
+        isInserting = true;
+        markToInsert = new Mark();
+        await marksGrid.InsertRow(markToInsert);
+    }
+
+    private async Task SaveRow(Mark mark)
+    {
+        var result = await DialogService.Confirm("Вы собираетесь изменить данные?", "Редактирование", new ConfirmOptions() { OkButtonText = "Да", CancelButtonText = "Нет" });
+        if (result is true)
+        {
+            await marksGrid.UpdateRow(mark);
+            await LoadDataAsync();
+            await marksGrid.Reload();
+        }
+    }
+
+    private async Task EditRow(Mark mark)
+    {
+        markToUpdate = mark;
+        await marksGrid.EditRow(mark);
+    }
+
+    private async Task OnUpdateRow(Mark mark)
+    {
+        Reset();
+        await MarkService.SaveMarkAsync(mark);
+    }
+
+    private async Task DeleteRow(Mark mark)
+    {
+        var result = await DialogService.Confirm("Вы собираетесь удалить запись? Эти данные нельзя будет восстановить!", "Удаление записи", new ConfirmOptions() { OkButtonText = "Да", CancelButtonText = "Нет" });
+        if (result is not true) return;
+        Reset();
+
+        if (_marks.Contains(mark))
+        {
+            var deleteCheck = await MarkService.DeleteMarkAsync(mark.Id);
+            if (!deleteCheck.Status)
+            {
+                await JsRuntime.InvokeVoidAsync("console.log", deleteCheck.Error);
+                return;
+            }
+            await LoadDataAsync();
+            await marksGrid.Reload();
+        }
+        else
+        {
+            marksGrid.CancelEditRow(mark);
+            await marksGrid.Reload();
+        }
+    }
+
+    private async Task OnCreateRow(Mark mark)
+    {
+        await MarkService.SaveMarkAsync(mark);
+        markToInsert = null;
+        isInserting = false;
+    }
+
+    private void CancelEdit(Mark mark)
+    {
+        Reset();
+
+        marksGrid.CancelEditRow(mark);
+
+        MarkService.CheckEntries(mark);
+    }
+
+    private async Task OnChangeCaseSensitivity(bool? value)
+    {
+        if (!value.HasValue)
+        {
+            await JsRuntime.InvokeVoidAsync("console.log", $"variable with name {nameof(value)} does not contain readable value");
+            return;
+        }
+        if (value.Value)
+            filterCaseSensitivity = FilterCaseSensitivity.Default;
+        else
+            filterCaseSensitivity = FilterCaseSensitivity.CaseInsensitive;
+    }
+}

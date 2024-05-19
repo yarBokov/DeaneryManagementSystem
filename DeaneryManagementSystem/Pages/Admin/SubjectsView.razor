@@ -1,0 +1,158 @@
+﻿@page "/admin/subjects"
+@using DeaneryManagementSystem.Models
+
+@attribute [Authorize(Roles = "Admin")]
+
+@inject ISubjectService SubjectService
+@inject IJSRuntime JsRuntime
+@inject DialogService DialogService
+@inject TooltipService TooltipService
+
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center">
+        <h3>Предметы</h3>
+        <RadzenButton Variant="Variant.Flat" Click="@OpenSubjectFormAsync" Text="Добавить предмет" ButtonStyle="ButtonStyle.Primary" />
+    </div>
+    <hr />
+    <table class="table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>ID</th>
+                <th>Название предмета</th>
+                <th>Наличие оценок по предмету</th>
+                <th></th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (_loading)
+            {
+                <tr>
+                    <td colspan="5" class="text-center">
+                        Загрузка групп...
+                    </td>
+                </tr>
+            }
+            else if (!_loading && (_subjects is null || !_subjects.Any()))
+            {
+                <tr>
+                    <td colspan="5" class="text-center">
+                        Категории не найдены!
+                    </td>
+                </tr>
+            }
+            else
+            {
+                int sno = 1;
+                foreach (var subject in _subjects!)
+                {
+                    <tr>
+                        <td>@(sno++)</td>
+                        <td>@subject.Id</td>
+                        <td>@subject.Name</td>
+                        <td>@(subject.Marks.Any() ? "ДА" : "НЕТ")</td>
+                        <td>
+                            <RadzenButton Variant="Variant.Flat" Click="@(args => EditSubjectAsync(subject))"
+                                          Text="Редактировать" ButtonStyle="ButtonStyle.Primary" Shade="Shade.Lighter"
+                                          MouseEnter="@(args => ShowTooltip(args, subject.Marks.Any(), new TooltipOptions(){ Position = TooltipPosition.Left, Delay=1000, Duration=5000 }))" />
+                        </td>
+                        <td>
+                            <RadzenButton Variant="Variant.Flat" Click="@(args => DeleteSubjectAsync(subject))" Disabled="subject.Marks.Any()"
+                                          Text="Удалить предмет" ButtonStyle="ButtonStyle.Danger"
+                                          MouseEnter="@(args => ShowTooltip(args, subject.Marks.Any(), new TooltipOptions(){ Position = TooltipPosition.Bottom, Delay=1000, Duration=5000 }))" />
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+<dialog id="@_subjectFormDialogId">
+    <SaveSubjectForm Subject="_subjectModel"
+                     OnSaveSubject="OnSaveSubject"
+                     OnCloseForm="CloseSubjectFormAsync" />
+</dialog>
+
+<style type="text/css">
+    dialog {
+        padding: 0;
+        border: 2px solid black;
+    }
+</style>
+
+@code {
+    private const string _subjectFormDialogId = "subject-form";
+    private bool _loading = false;
+    private IEnumerable<Subject>? _subjects = null;
+
+    private Subject _subjectModel = new();
+
+    void ShowTooltip(ElementReference elementReference, bool isDisabled, TooltipOptions options = null) =>
+        TooltipService.Open(elementReference, (isDisabled ? @"На эти данные есть ссылки в других таблицах" : "Работайте с данными на свой страх и риск!"), options);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSubjectsAsync();
+    }
+
+    private async Task LoadSubjectsAsync()
+    {
+        _loading = true;
+        try
+        {
+            _subjects = await SubjectService.GetSubjectsAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OpenSubjectFormAsync() =>
+        await JsRuntime.InvokeVoidAsync("window.openModal", _subjectFormDialogId);
+
+    private async Task CloseSubjectFormAsync()
+    {
+        _subjectModel = new();
+        await JsRuntime.InvokeVoidAsync("window.closeModal", _subjectFormDialogId);
+    }
+
+    private async Task EditSubjectAsync(Subject subject)
+    {
+        _subjectModel = await SubjectService.GetSubjectById(subject.Id);
+        await OpenSubjectFormAsync();
+    }
+
+    private async Task OnSaveSubject(MethodResult saveGroupResult)
+    {
+        if (saveGroupResult.Status)
+        {
+            await AlertAsync("Группа сохранена!");
+            await LoadSubjectsAsync();
+            await CloseSubjectFormAsync();
+        }
+        else
+        {
+            await AlertAsync(saveGroupResult.Error!);
+        }
+    }
+
+    private async Task DeleteSubjectAsync(Subject subject)
+    {
+        var result = await DialogService.Confirm("Вы собираетесь удалить запись? Данные нельзя будет восстановить", "Удаление записи", new ConfirmOptions() { OkButtonText = "Да", CancelButtonText = "Нет" });
+        if (result is not true) return;
+        var deleteCheck = await SubjectService.DeleteSubjectAsync(subject.Id);
+        if (!deleteCheck.Status)
+        {
+            await JsRuntime.InvokeVoidAsync("console.log", deleteCheck.Error);
+            return;
+        }
+        await LoadSubjectsAsync();
+    }
+
+    private async Task AlertAsync(string message)
+    {
+        await JsRuntime.InvokeVoidAsync("window.alert", message);
+    }
+}

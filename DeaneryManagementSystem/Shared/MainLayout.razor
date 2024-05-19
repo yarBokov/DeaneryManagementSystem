@@ -1,19 +1,16 @@
 ﻿@inherits LayoutComponentBase
 
-<PageTitle>DeaneryManagementSystem</PageTitle>
+<PageTitle>Автоматизация работы деканата</PageTitle>
 
 <div class="page">
-    <div class="sidebar">
-        <NavMenu />
+    <div class="container-fluid bg-dark">
+        <TopNavBar />
     </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://docs.microsoft.com/aspnet/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
+    <div class="container-fluid flex-grow-1">
+        @Body
+    </div>
 </div>
+
+<RadzenComponents/>
+<RadzenDialog />
+<RadzenTooltip />

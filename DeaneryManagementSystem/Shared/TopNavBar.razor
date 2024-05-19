@@ -1,0 +1,59 @@
+﻿@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthStateProvider
+
+<div class="container">
+    <header class="d-flex justify-content-center justify-content-md-between flex-wrap py-3 mb-4 border-white border-bottom border-5">
+        <NavLink href="/" class="text-light text-decoration-none fs-4 fw-bold">Деканат</NavLink>
+
+        <ul class="nav">
+            <AuthorizeView Roles="Admin,User">
+                <li>
+                    <NavLink href="/marks" class="link-light nav-link">Оценки</NavLink>
+                </li>
+            </AuthorizeView>
+            <AuthorizeView Roles="Admin">
+                <Authorized>
+                    <li>
+                        <NavLink href="/admin/reports" class="link-light nav-link">Отчетность</NavLink>
+                    </li>
+                    <li>
+                        <NavLink href="/admin/subjects" class="link-light nav-link">Предметы</NavLink>
+                    </li>
+                    <li>
+                        <NavLink href="/admin/groups" class="link-light nav-link">Группы</NavLink>
+                    </li>
+                    <li>
+                        <NavLink href="/admin/students" class="link-light nav-link">Список студентов</NavLink>
+                    </li>
+                    <li>
+                        <NavLink href="/admin/teachers" class="link-light nav-link">Преподаватели</NavLink>
+                    </li>
+                </Authorized>
+            </AuthorizeView>
+        </ul>
+
+        <div class="text-end">
+            <AuthorizeView Roles="Admin,User">
+                <Authorizing>Проверка ауентификации...</Authorizing>
+                <Authorized>
+                    <NavLink href="javascript:void()" class="btn btn-light disabled">@context.User.Identity.Name</NavLink>
+                        <button type="button" class="btn btn-primary" @onclick="LogoutAsync">Выйти</button>
+                    </Authorized>
+                    <NotAuthorized>
+                        <NavLink href="/authentication/login" class="btn btn-primary">Войти</NavLink>
+                        <NavLink href="/authentication/registration" class="btn btn-info">Зарегистрироваться</NavLink>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+
+        </header>
+    </div>
+
+@code {
+    private async Task LogoutAsync()
+    {
+        var customAuthStateProvider = (DeaneryAuthenticationStateProvider)AuthStateProvider;
+        await customAuthStateProvider.UpdateAuthenticationState(null);
+        NavigationManager.NavigateTo("/", true);
+    }
+}
